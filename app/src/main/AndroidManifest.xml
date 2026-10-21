@@ -6,23 +6,18 @@
         android:label="@string/app_name"
         android:supportsRtl="true">
 
-        <!-- 声明这是一个 Xposed 模块 -->
+        <!-- 仅保留标准 Xposed 3 项声明 -->
         <meta-data
             android:name="xposedmodule"
             android:value="true" />
-            
-        <!-- 修改模块描述，避免使用默认的原项目描述 -->
         <meta-data
             android:name="xposeddescription"
             android:value="Apex Master Engine" />
-            
-        <!-- 最低支持版本 -->
         <meta-data
             android:name="xposedminversion"
-            android:value="82+" />
+            android:value="82" />
 
-        <!-- ⚠️ 绝对不要在这里添加 <meta-data android:name="xposedscope" ... /> -->
-
+        <!-- 桌面启动的主 Activity -->
         <activity
             android:name=".StatusActivity"
             android:exported="true">
