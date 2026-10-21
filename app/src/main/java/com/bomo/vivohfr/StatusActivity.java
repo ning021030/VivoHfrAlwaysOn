@@ -8,7 +8,7 @@ public class StatusActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Toast.makeText(this, "Apex Master Engine 模块运行中", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Apex Master Engine 运行中", Toast.LENGTH_SHORT).show();
         finish();
     }
 }
