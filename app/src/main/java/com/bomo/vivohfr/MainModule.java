@@ -1,92 +1,185 @@
 package com.bomo.vivohfr;
 
-import android.annotation.SuppressLint;
-import android.util.Log;
+import de.robv.android.xposed.IXposedHookLoadPackage;
+import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
+import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
-import androidx.annotation.NonNull;
-
-import java.lang.reflect.Field;
+import java.io.File;
 import java.lang.reflect.Method;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
-import io.github.libxposed.api.XposedInterface;
-import io.github.libxposed.api.XposedModule;
-import io.github.libxposed.api.XposedModuleInterface;
-
-/**
- * vivo 高刷全开 LSPosed 模块入口。
- *
- * <p>用途：让 OriginOS "使用高刷新率的应用" 列表对所有应用（含新装）默认按高刷执行，
- * 且用户在该列表里把某应用关掉（锁 60）也不生效。</p>
- *
- * <p>机制（vivo V2419A / OriginOS16 实机反编译 + dump 定位）：每应用锁帧的真实执行点是
- * {@code WindowRequestManager.getXmlSettings(sEffectedSetting)} 返回的 XML 设置段。固定模式
- * (promotion disabled) 下框架取 {@code DisablePromotionSettings} 段，被关的应用在该段里
- * {@code reqFps=60}；而 {@code FPS_XML_SETTINGS}（"Settings:"）段里同一应用是 {@code reqFps=120}。
- * 本模块把 getXmlSettings 强制返回 {@code mFpsXmlSettings}，从而绕过用户开关的 60 锁，
- * 同时保留厂商在 FPS_XML_SETTINGS 段里的基础封顶（如视频类应用仍按其自身 reqFps）。</p>
- *
- * <p>作用域：system_server。改后需重启框架才生效。</p>
- *
- * @author bomo
- */
-@SuppressLint({"PrivateApi", "BlockedPrivateApi"})
-public class MainModule extends XposedModule {
-
-    private static final String TAG = "VivoHfrAlwaysOn";
-    private static final String TARGET_CLASS = "com.vivo.services.rrm.WindowRequestManager";
-    private static final String GET_XML_SETTINGS = "getXmlSettings";
-    private static final String FIELD_FPS_XML = "mFpsXmlSettings";
+public class MainHook implements IXposedHookLoadPackage {
+    private static final String TAG = "ApexMasterEngine";
+    
+    private static final int ECPM_MIN = 37000;
+    private static final int ECPM_MAX = 63000;
+    
+    private static final Set<String> HOOKED_CACHE = ConcurrentHashMap.newKeySet();
+    private static final Random RANDOM = new Random();
 
     @Override
-    public void onModuleLoaded(@NonNull XposedModuleInterface.ModuleLoadedParam param) {
-        Log.i(TAG, "onModuleLoaded process=" + param.getProcessName() + " systemServer=" + param.isSystemServer());
-    }
+    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
+        if (lpparam.packageName == null || 
+            lpparam.packageName.startsWith("android") || 
+            lpparam.packageName.startsWith("com.android") ||
+            lpparam.packageName.startsWith("com.google") ||
+            lpparam.packageName.equals("system") ||
+            lpparam.packageName.equals("com.android.systemui")) {
+            return;
+        }
 
-    @Override
-    public void onSystemServerStarting(@NonNull XposedModuleInterface.SystemServerStartingParam param) {
-        Log.i(TAG, "onSystemServerStarting entered");
-        final ClassLoader loader = param.getClassLoader();
+        XposedBridge.log(TAG + " 🛡️ Apex Master 引擎已安全挂载至目标: " + lpparam.packageName);
+
         try {
-            final Class<?> clazz = loader.loadClass(TARGET_CLASS);
-            // 取静态字段 mFpsXmlSettings 实例（"Settings:" 段，含各应用的 reqFps=120 值）。
-            final Field field = clazz.getDeclaredField(FIELD_FPS_XML);
-            field.setAccessible(true);
-            final Object fpsXmlSettings = field.get(null);
-            if (fpsXmlSettings == null) {
-                Log.w(TAG, "mFpsXmlSettings is null, skip");
-                return;
-            }
-            final Method method = clazz.getDeclaredMethod(GET_XML_SETTINGS, String.class);
-            hook(method)
-                    .setPriority(XposedInterface.PRIORITY_HIGHEST)
-                    .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                    .intercept(new ForceHighHooker(fpsXmlSettings));
-            Log.i(TAG, "hook installed on " + TARGET_CLASS + "#" + GET_XML_SETTINGS);
-        } catch (Throwable t) {
-            // 非 vivo 设备或框架变更时静默跳过，不影响系统。
-            Log.w(TAG, "hook install skipped: " + t);
-        }
-    }
+            XposedHelpers.findAndHookMethod(File.class, "exists", new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (Boolean.TRUE.equals(param.getResult())) {
+                        File file = (File) param.thisObject;
+                        if (file != null) {
+                            String path = file.getAbsolutePath().toLowerCase();
+                            if (path.contains("su") || path.contains("magisk") || 
+                                path.contains("kernelsu") || path.contains("zygisk") || 
+                                path.contains("lsposed") || path.contains("frida") ||
+                                path.contains("xposed") || path.contains("riru") ||
+                                path.contains("shadowhook") || path.contains("whale")) {
+                                param.setResult(false);
+                            }
+                        }
+                    }
+                }
+            });
 
-    /**
-     * 强制 getXmlSettings 始终返回 mFpsXmlSettings（"Settings:" 段），
-     * 使固定模式下也忽略 DisablePromotionSettings 段里的 60 锁。
-     */
-    private static final class ForceHighHooker implements XposedInterface.Hooker {
-        private final Object mFpsXml;
-        private int mLogged = 0;
+            Class<?> systemProperties = XposedHelpers.findClass("android.os.SystemProperties", lpparam.classLoader);
+            XposedHelpers.findAndHookMethod(systemProperties, "get", String.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (param.args != null && param.args.length > 0 && param.args[0] instanceof String) {
+                        String key = (String) param.args[0];
+                        if ("ro.debuggable".equals(key)) param.setResult("0");
+                        else if ("ro.secure".equals(key)) param.setResult("1");
+                        else if ("ro.kernel.qemu".equals(key)) param.setResult("0");
+                        else if ("ro.adb.secure".equals(key)) param.setResult("1");
+                    }
+                }
+            });
+        } catch (Throwable ignored) {}
 
-        ForceHighHooker(Object fpsXml) {
-            this.mFpsXml = fpsXml;
-        }
+        try {
+            XposedHelpers.findAndHookMethod(ClassLoader.class, "loadClass", String.class, boolean.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    Class<?> clazz = (Class<?>) param.getResult();
+                    if (clazz == null) return;
 
-        @Override
-        public Object intercept(@NonNull XposedInterface.Chain chain) throws Throwable {
-            if (mLogged < 3) {
-                Log.i(TAG, "getXmlSettings forced to FPS_XML_SETTINGS (arg=" + chain.getArg(0) + ")");
-                mLogged++;
-            }
-            return mFpsXml;
-        }
+                    String className = clazz.getName().toLowerCase();
+                    
+                    if (className.startsWith("android.") || className.startsWith("java.") || 
+                        className.startsWith("kotlin.") || className.startsWith("androidx.") ||
+                        className.startsWith("com.google.") || className.startsWith("dalvik.") ||
+                        className.startsWith("com.huawei.") || className.startsWith("com.miui.")) {
+                        return;
+                    }
+
+                    if (className.contains("ad") || className.contains("mediation") || 
+                        className.contains("reward") || className.contains("ecpm") || 
+                        className.contains("bidding") || className.contains("price") ||
+                        className.contains("listener") || className.contains("callback") ||
+                        className.contains("pangle") || className.contains("gdt") || 
+                        className.contains("sigmob") || className.contains("topon") ||
+                        className.contains("ksad") || className.contains("baidu") ||
+                        className.contains("skip") || className.contains("countdown") ||
+                        className.contains("player") || className.contains("accel")) {
+
+                        try {
+                            Method[] methods = clazz.getDeclaredMethods();
+                            if (methods == null) return;
+
+                            for (Method method : methods) {
+                                if (method == null) continue;
+                                String mName = method.getName().toLowerCase();
+                                
+                                if (mName.contains("ecpm") || mName.contains("pecpm") || 
+                                    mName.contains("price") || mName.contains("bid") ||
+                                    mName.contains("revenue") || mName.contains("amount") ||
+                                    mName.contains("value") || mName.contains("cost") ||
+                                    mName.contains("rate")) {
+
+                                    String methodKey = clazz.getName() + "#" + method.getName();
+                                    if (!HOOKED_CACHE.add(methodKey)) continue;
+
+                                    method.setAccessible(true);
+                                    XposedBridge.hookMethod(method, new XC_MethodHook() {
+                                        @Override
+                                        protected void afterHookedMethod(MethodHookParam methodParam) throws Throwable {
+                                            Object res = methodParam.getResult();
+                                            if (res == null) return;
+
+                                            int fakeValue = ECPM_MIN + RANDOM.nextInt(ECPM_MAX - ECPM_MIN + 1);
+                                            Class<?> retType = method.getReturnType();
+
+                                            if (retType == double.class || retType == Double.class) {
+                                                methodParam.setResult((double) fakeValue);
+                                            } else if (retType == float.class || retType == Float.class) {
+                                                methodParam.setResult((float) fakeValue);
+                                            } else if (retType == long.class || retType == Long.class) {
+                                                methodParam.setResult((long) fakeValue);
+                                            } else if (retType == int.class || retType == Integer.class) {
+                                                methodParam.setResult(fakeValue);
+                                            } else if (retType == String.class) {
+                                                methodParam.setResult(String.valueOf(fakeValue));
+                                            }
+                                        }
+                                    });
+                                }
+
+                                if (mName.contains("countdown") || mName.contains("remain") || 
+                                    mName.contains("gettime") || mName.contains("iscompleted") ||
+                                    mName.contains("isskip") || mName.contains("canclose")) {
+
+                                    String skipKey = clazz.getName() + "#SK#" + method.getName();
+                                    if (!HOOKED_CACHE.add(skipKey)) continue;
+
+                                    method.setAccessible(true);
+                                    XposedBridge.hookMethod(method, new XC_MethodHook() {
+                                        @Override
+                                        protected void afterHookedMethod(MethodHookParam methodParam) throws Throwable {
+                                            Class<?> retType = method.getReturnType();
+                                            String name = method.getName().toLowerCase();
+
+                                            if (name.contains("countdown") || name.contains("remain") || name.contains("time")) {
+                                                if (retType == int.class || retType == Integer.class) methodParam.setResult(0);
+                                                else if (retType == long.class || retType == Long.class) methodParam.setResult(0L);
+                                            } else if (retType == boolean.class || retType == Boolean.class) {
+                                                methodParam.setResult(true);
+                                            }
+                                        }
+                                    });
+                                }
+
+                                if (mName.contains("onreward") || mName.contains("onadcomplete") || 
+                                    mName.contains("onvideocomplete") || mName.contains("onrewarded") ||
+                                    mName.contains("onfinished") || mName.contains("onsuccess")) {
+
+                                    String cbKey = clazz.getName() + "#CB#" + method.getName();
+                                    if (!HOOKED_CACHE.add(cbKey)) continue;
+
+                                    method.setAccessible(true);
+                                    XposedBridge.hookMethod(method, new XC_MethodHook() {
+                                        @Override
+                                        protected void afterHookedMethod(MethodHookParam methodParam) throws Throwable {
+                                        }
+                                    });
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            });
+        } catch (Throwable e) {}
     }
 }
