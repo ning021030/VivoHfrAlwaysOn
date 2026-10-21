@@ -9,6 +9,6 @@ public class StatusActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Toast.makeText(this, "Apex Master Engine 模块运行中", Toast.LENGTH_SHORT).show();
-        finish(); // 弹出提示后自动退出，避免界面崩溃
+        finish();
     }
 }
