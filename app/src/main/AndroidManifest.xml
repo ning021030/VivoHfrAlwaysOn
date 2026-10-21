@@ -3,21 +3,20 @@
 
     <application
         android:allowBackup="true"
-        android:label="@string/app_name"
+        android:label="Apex Master Engine"
         android:supportsRtl="true">
 
-        <!-- 仅保留标准 Xposed 3 项声明 -->
         <meta-data
             android:name="xposedmodule"
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="Apex Master Engine" />
+            android:value="Apex Master Engine Module" />
         <meta-data
             android:name="xposedminversion"
             android:value="82" />
 
-        <!-- 桌面启动的主 Activity -->
+        <!-- 注意这里的 .StatusActivity 会自动拼接上面的 namespace -->
         <activity
             android:name=".StatusActivity"
             android:exported="true">
