@@ -4,33 +4,14 @@ plugins {
 
 android {
     namespace = "com.bomo.vivohfr"
-    compileSdk = 36
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.bomo.vivohfr"
-        minSdk = 31
-        versionCode = 2
-        versionName = "1.0.1"
-    }
-
-    signingConfigs {
-        create("release") {
-            storeFile = file("../keystore/vivohfr.jks")
-            storePassword = System.getenv("HFR_KS_PASS") ?: "changeme"
-            keyAlias = "vivohfr"
-            keyPassword = System.getenv("HFR_KS_PASS") ?: "changeme"
-        }
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
-        }
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0.0"
     }
 
     compileOptions {
@@ -38,18 +19,18 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    lint {
-        checkReleaseBuilds = false
-    }
-
-    dependenciesInfo {
-        includeInApk = false
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
     }
 }
 
 dependencies {
     compileOnly("androidx.annotation:annotation:1.9.1")
-    compileOnly("io.github.libxposed:api:101.0.1")
-    compileOnly("de.robv.android.xposed:api:82") // 补上这一行传统的 Xposed 依赖
+    compileOnly("de.robv.android.xposed:api:82")
 }
-
