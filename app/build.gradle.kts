@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace = "com.apex.master"
+    namespace = "com.bomo.vivohfr"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.apex.master"
+        applicationId = "com.bomo.vivohfr"
         minSdk = 26
         targetSdk = 34
         versionCode = 2
