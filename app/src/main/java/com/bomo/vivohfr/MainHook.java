@@ -19,9 +19,6 @@ public class MainHook implements IXposedHookLoadPackage {
     private static final Random RANDOM = new Random();
     private static XSharedPreferences sPrefs;
 
-    /**
-     * 动态读取配置：每次触发时 reload，实现修改配置后免重启应用实时生效
-     */
     private static synchronized int[] getDynamicRange() {
         int minVal = 100000;
         int maxVal = 130000;
@@ -30,7 +27,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 sPrefs = new XSharedPreferences("com.bomo.vivohfr", "config");
                 sPrefs.makeWorldReadable();
             } else {
-                sPrefs.reload(); // 强制刷新内存映射，实现无缝动态更新
+                sPrefs.reload();
             }
             String minStr = sPrefs.getString("min_val", "100000");
             String maxStr = sPrefs.getString("max_val", "130000");
@@ -46,18 +43,15 @@ public class MainHook implements IXposedHookLoadPackage {
         return new int[]{minVal, maxVal};
     }
 
-    /**
-     * 统一日志输出接口：输出到 LSPosed 系统管道，零权限限制，UI 面板实时提取
-     */
     private static void log(String msg) {
         try {
             XposedBridge.log(TAG + " ➔ " + msg);
+            LogUtils.sendLog(msg);
         } catch (Throwable ignored) {}
     }
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        // 过滤系统关键进程与自身控制面板，提高执行效率与稳定性
         if (lpparam.packageName == null || 
             lpparam.packageName.startsWith("android") || 
             lpparam.packageName.startsWith("com.android") ||
@@ -68,11 +62,26 @@ public class MainHook implements IXposedHookLoadPackage {
             return;
         }
 
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.app.Application",
+                lpparam.classLoader,
+                "attachBaseContext",
+                android.content.Context.class,
+                new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                        android.content.Context context = (android.content.Context) param.args[0];
+                        GlobalContext.setContext(context);
+                    }
+                }
+            );
+        } catch (Throwable ignored) {}
+
         log("🚀 薅羊毛全能通杀引擎已成功注入目标: " + lpparam.packageName);
 
         // ==================== 第一部分：硬核反检测与风控对抗 ====================
         try {
-            // 1. 隐匿敏感特征文件与框架痕迹
             XposedHelpers.findAndHookMethod(File.class, "exists", new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -92,7 +101,6 @@ public class MainHook implements IXposedHookLoadPackage {
                 }
             });
 
-            // 2. 伪装系统调试环境与安全属性
             Class<?> systemProperties = XposedHelpers.findClass("android.os.SystemProperties", lpparam.classLoader);
             XposedHelpers.findAndHookMethod(systemProperties, "get", String.class, new XC_MethodHook() {
                 @Override
@@ -107,51 +115,9 @@ public class MainHook implements IXposedHookLoadPackage {
                     }
                 }
             });
-
-            // 3. 屏蔽应用包管理器扫描 Hook / Root 软件
-            XposedHelpers.findAndHookMethod("android.app.ApplicationPackageManager", lpparam.classLoader, 
-                "getInstalledPackages", int.class, new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    java.util.List<?> list = (java.util.List<?>) param.getResult();
-                    if (list != null) {
-                        java.util.Iterator<?> iterator = list.iterator();
-                        while (iterator.hasNext()) {
-                            Object pkgInfo = iterator.next();
-                            try {
-                                String pkgName = (String) XposedHelpers.getObjectField(pkgInfo, "packageName");
-                                if (pkgName != null && (pkgName.contains("lsposed") || pkgName.contains("magisk") || 
-                                    pkgName.contains("bin.mt") || pkgName.contains("xposed") || 
-                                    pkgName.contains("root") || pkgName.contains("frida"))) {
-                                    iterator.remove();
-                                }
-                            } catch (Throwable ignored) {}
-                        }
-                    }
-                }
-            });
-
-            // 4. 清洗 Throwable 堆栈追踪中的 Hook 框架特征
-            XposedHelpers.findAndHookMethod(Throwable.class, "getStackTrace", new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    StackTraceElement[] stack = (StackTraceElement[]) param.getResult();
-                    if (stack == null) return;
-                    java.util.List<StackTraceElement> cleanList = new java.util.ArrayList<>();
-                    for (StackTraceElement element : stack) {
-                        String clsName = element.getClassName();
-                        if (clsName != null && (clsName.contains("de.robv.android.xposed") || 
-                            clsName.contains("com.saurik.substrate") || clsName.contains("lsposed"))) {
-                            continue;
-                        }
-                        cleanList.add(element);
-                    }
-                    param.setResult(cleanList.toArray(new StackTraceElement[0]));
-                }
-            });
         } catch (Throwable ignored) {}
 
-        // ==================== 第二部分：全量广告 SDK 与业务逻辑通杀引擎 ====================
+        // ==================== 第二部分：全量广告 SDK 与业务逻辑通杀引擎（强化版） ====================
         try {
             XposedHelpers.findAndHookMethod(ClassLoader.class, "loadClass", String.class, boolean.class, new XC_MethodHook() {
                 @Override
@@ -160,14 +126,12 @@ public class MainHook implements IXposedHookLoadPackage {
                     if (clazz == null) return;
 
                     String className = clazz.getName().toLowerCase();
-                    // 跳过 Android 原生核心库，极大地保障运行性能
                     if (className.startsWith("android.") || className.startsWith("java.") || 
                         className.startsWith("kotlin.") || className.startsWith("androidx.") ||
                         className.startsWith("com.google.") || className.startsWith("dalvik.")) {
                         return;
                     }
 
-                    // 深度覆盖常见的商业广告 SDK 与游戏结算逻辑类
                     if (className.contains("ad") || className.contains("mediation") || 
                         className.contains("reward") || className.contains("ecpm") || 
                         className.contains("bidding") || className.contains("price") ||
@@ -208,7 +172,6 @@ public class MainHook implements IXposedHookLoadPackage {
                                             Object res = methodParam.getResult();
                                             if (res == null) return;
 
-                                            // 拟态波动：90% 概率篡改，10% 保持自然抖动，完美防高频判定封号
                                             if (RANDOM.nextInt(100) < 10) return; 
 
                                             int[] range = getDynamicRange();
@@ -234,12 +197,14 @@ public class MainHook implements IXposedHookLoadPackage {
                                     });
                                 }
 
-                                // 2. 广告倒计时清零与免看秒领奖
+                                // 2. 【强化】广告倒计时清零、免看秒领奖、强制完成与跳过
                                 if (mName.contains("countdown") || mName.contains("remain") || 
                                     mName.contains("gettime") || mName.contains("iscompleted") ||
                                     mName.contains("isskip") || mName.contains("canclose") ||
                                     mName.contains("issuccess") || mName.contains("isreward") ||
-                                    mName.contains("hasreward") || mName.contains("isvalid")) {
+                                    mName.contains("hasreward") || mName.contains("isvalid") ||
+                                    mName.contains("complete") || mName.contains("finish") ||
+                                    mName.contains("rewarded") || mName.contains("adclosed")) {
 
                                     String skipKey = clazz.getName() + "#SK#" + method.getName();
                                     if (!HOOKED_CACHE.add(skipKey)) continue;
@@ -254,9 +219,10 @@ public class MainHook implements IXposedHookLoadPackage {
                                             if (name.contains("countdown") || name.contains("remain") || name.contains("time")) {
                                                 if (retType == int.class || retType == Integer.class) methodParam.setResult(0);
                                                 else if (retType == long.class || retType == Long.class) methodParam.setResult(0L);
-                                            } else if (retType == boolean.class || retType == Boolean.class) {
+                                            } else if (retType == boolean.class || retType == Boolean.class || retType == void.class) {
                                                 methodParam.setResult(true);
                                             }
+                                            log("广告强制跳过/秒领奖触发 ➔ [" + method.getName() + "]");
                                         }
                                     });
                                 }
