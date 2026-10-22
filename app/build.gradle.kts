@@ -10,13 +10,8 @@ android {
         applicationId = "com.bomo.vivohfr"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.0.0"
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        versionCode = 1
+        versionName = "1.0"
     }
 
     buildTypes {
@@ -28,9 +23,14 @@ android {
             )
         }
     }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
 }
 
 dependencies {
-    compileOnly("androidx.annotation:annotation:1.9.1")
-    compileOnly("de.robv.android.xposed:api:82")
+    // 必须引入此项以解决 Theme.AppCompat 找不到的问题
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.9.0")
 }
