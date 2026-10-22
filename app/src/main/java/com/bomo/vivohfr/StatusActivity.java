@@ -13,7 +13,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
-// 【关键修复】显式导入当前包的 R 资源类，解决控件找不到符号的问题
 import com.bomo.vivohfr.R;
 
 import java.io.BufferedReader;
@@ -22,7 +21,7 @@ import java.util.LinkedList;
 
 /**
  * ApexMasterEngine Ultimate - StatusActivity
- * Build Version: 2026.10.V4 (Fix Resource Import)
+ * Build Version: 2026.10.V5 (Layout Name Fixed)
  */
 public class StatusActivity extends AppCompatActivity {
     private static final String PREF_NAME = "config";
@@ -48,7 +47,8 @@ public class StatusActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        // 【已修复】匹配你仓库中实际的 activity_status.xml 布局文件名
+        setContentView(R.layout.activity_status);
 
         initViews();
         loadConfiguration();
