@@ -13,13 +13,16 @@ import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
+// 【关键修复】显式导入当前包的 R 资源类，解决控件找不到符号的问题
+import com.bomo.vivohfr.R;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.LinkedList;
 
 /**
  * ApexMasterEngine Ultimate - StatusActivity
- * Build Version: 2026.10.V3 (Force Trigger Update)
+ * Build Version: 2026.10.V4 (Fix Resource Import)
  */
 public class StatusActivity extends AppCompatActivity {
     private static final String PREF_NAME = "config";
