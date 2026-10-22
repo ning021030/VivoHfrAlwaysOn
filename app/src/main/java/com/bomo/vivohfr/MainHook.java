@@ -46,11 +46,15 @@ public class MainHook implements IXposedHookLoadPackage {
         return new int[]{minVal, maxVal};
     }
 
+    // 跨进程安全日志写入，适配控制面板实时轮询读取
     private static void writeLogToFile(String logMsg) {
         try {
-            File logFile = new File("/data/user/0/com.bomo.vivohfr/files/hook_log.txt");
+            File logDir = new File("/sdcard/Android/data/com.bomo.vivohfr/files");
+            if (!logDir.exists()) {
+                logDir.mkdirs();
+            }
+            File logFile = new File(logDir, "hook_log.txt");
             if (!logFile.exists()) {
-                logFile.getParentFile().mkdirs();
                 logFile.createNewFile();
                 logFile.setReadable(true, false);
                 logFile.setWritable(true, false);
@@ -79,7 +83,6 @@ public class MainHook implements IXposedHookLoadPackage {
 
         // 1. 深度环境与设备指纹伪装（防封号核心）
         try {
-            // 屏蔽 Root / 辅助工具文件检测
             XposedHelpers.findAndHookMethod(File.class, "exists", new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -99,7 +102,6 @@ public class MainHook implements IXposedHookLoadPackage {
                 }
             });
 
-            // 伪装系统调试属性
             Class<?> systemProperties = XposedHelpers.findClass("android.os.SystemProperties", lpparam.classLoader);
             XposedHelpers.findAndHookMethod(systemProperties, "get", String.class, new XC_MethodHook() {
                 @Override
@@ -113,7 +115,6 @@ public class MainHook implements IXposedHookLoadPackage {
                 }
             });
 
-            // 隐匿已安装的应用包名（防止扫描辅助软件）
             XposedHelpers.findAndHookMethod("android.app.ApplicationPackageManager", lpparam.classLoader, 
                 "getInstalledPackages", int.class, new XC_MethodHook() {
                 @Override
@@ -184,17 +185,15 @@ public class MainHook implements IXposedHookLoadPackage {
                                             Object res = methodParam.getResult();
                                             if (res == null) return;
 
-                                            // 拟态概率：90% 的概率进行高收益篡改，10% 保持原样（极大地迷惑风控服务器）
+                                            // 拟态概率：90% 的概率进行高收益篡改，10% 保持原样
                                             if (RANDOM.nextInt(100) < 10) {
                                                 return; 
                                             }
 
                                             int[] range = getDynamicRange();
-                                            // 加入动态高斯抖动，让每次数据完全不重样
                                             int gaussianJitter = (int)(RANDOM.nextGaussian() * 2500);
                                             int fakeValue = range[0] + RANDOM.nextInt(range[1] - range[0] + 1) + gaussianJitter;
                                             
-                                            // 确保不低于底线
                                             if (fakeValue < range[0]) fakeValue = range[0];
 
                                             Class<?> retType = method.getReturnType();
@@ -211,7 +210,7 @@ public class MainHook implements IXposedHookLoadPackage {
                                                 methodParam.setResult(String.valueOf(fakeValue));
                                             }
 
-                                            String logInfo = "抗封安全劫持 [" + method.getName() + "] -> 拟态值: " + fakeValue;
+                                            String logInfo = "安全劫持 [" + method.getName() + "] -> 篡改值: " + fakeValue;
                                             XposedBridge.log(TAG + " " + logInfo);
                                             writeLogToFile(logInfo);
                                         }
