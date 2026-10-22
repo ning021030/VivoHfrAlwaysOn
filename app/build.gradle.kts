@@ -30,7 +30,10 @@ android {
 }
 
 dependencies {
-    // 必须引入此项以解决 Theme.AppCompat 找不到的问题
+    // UI 及基础库
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.9.0")
+
+    // 【核心关键】必须加上这一行，否则编译时找不到 de.robv.android.xposed.*
+    compileOnly("de.robv.android.xposed:api:82")
 }
