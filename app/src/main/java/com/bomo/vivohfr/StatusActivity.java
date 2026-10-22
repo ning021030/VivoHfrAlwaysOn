@@ -17,11 +17,15 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.LinkedList;
 
+/**
+ * ApexMasterEngine Ultimate - StatusActivity
+ * Build Version: 2026.10.V3 (Force Trigger Update)
+ */
 public class StatusActivity extends AppCompatActivity {
     private static final String PREF_NAME = "config";
     private static final String KEY_MIN = "min_val";
     private static final String KEY_MAX = "max_val";
-    private static final int MAX_LOG_LINES = 300; // 防卡顿内存保护上限
+    private static final int MAX_LOG_LINES = 300;
 
     private EditText etMin;
     private EditText etMax;
@@ -33,7 +37,7 @@ public class StatusActivity extends AppCompatActivity {
     private Process logcatProcess;
     private Thread logcatThread;
     private volatile boolean isRunning = true;
-    private int interceptCount = 0; // 实时劫持计数
+    private int interceptCount = 0;
 
     private final LinkedList<String> logBuffer = new LinkedList<>();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -65,7 +69,6 @@ public class StatusActivity extends AppCompatActivity {
     }
 
     private void setupListeners() {
-        // 保存配置事件：支持无缝全局重载
         if (btnSave != null) {
             btnSave.setOnClickListener(v -> {
                 String minStr = etMin != null ? etMin.getText().toString().trim() : "";
@@ -85,7 +88,6 @@ public class StatusActivity extends AppCompatActivity {
                         return;
                     }
 
-                    // 写入配置（设置 MODE_WORLD_READABLE 保证 XSharedPreferences 可读取）
                     SharedPreferences sp = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
                     sp.edit()
                             .putString(KEY_MIN, String.valueOf(min))
@@ -99,7 +101,6 @@ public class StatusActivity extends AppCompatActivity {
             });
         }
 
-        // 清空日志事件
         if (btnClear != null) {
             btnClear.setOnClickListener(v -> {
                 synchronized (logBuffer) {
@@ -113,9 +114,6 @@ public class StatusActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * 底层管道监听：实时订阅系统 Logcat 日志
-     */
     private void startLogcatListener() {
         if (tvLog != null) {
             tvLog.setText("引擎已就绪，请强行停止并重新打开目标小游戏...\n");
@@ -123,7 +121,6 @@ public class StatusActivity extends AppCompatActivity {
 
         logcatThread = new Thread(() -> {
             try {
-                // 清除缓存日志，仅订阅 Tag 属于 ApexMasterEngine_Ultimate 的流
                 Runtime.getRuntime().exec("logcat -c");
                 logcatProcess = Runtime.getRuntime().exec("logcat -s ApexMasterEngine_Ultimate:I *:S");
 
@@ -164,7 +161,6 @@ public class StatusActivity extends AppCompatActivity {
             }
             logBuffer.add(line);
 
-            // 保持最大行数，防止大高频日志挤爆 UI 线程
             while (logBuffer.size() > MAX_LOG_LINES) {
                 logBuffer.removeFirst();
             }
@@ -180,7 +176,6 @@ public class StatusActivity extends AppCompatActivity {
                 tvLog.setText(sb.toString());
             }
 
-            // 平滑自动追随最新日志
             if (logScroll != null) {
                 logScroll.post(() -> logScroll.fullScroll(ScrollView.FOCUS_DOWN));
             }
@@ -192,7 +187,6 @@ public class StatusActivity extends AppCompatActivity {
         super.onDestroy();
         isRunning = false;
         
-        // 彻底关闭管道与清理资源，防止内存泄露
         if (logcatProcess != null) {
             logcatProcess.destroy();
         }
