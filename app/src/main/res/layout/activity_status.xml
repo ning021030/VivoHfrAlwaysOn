@@ -3,97 +3,85 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp"
-    android:background="#F5F5F5">
+    android:padding="16dp">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Apex Master Engine 控制面板"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:textColor="#333333"
-        android:paddingBottom="12dp"/>
-
-    <!-- 最小值输入 -->
+    <!-- eCPM 最小值配置 -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="eCPM 最小值 (分)"
-        android:textColor="#666666"/>
+        android:text="eCPM 最小值："
+        android:textSize="14sp" />
+
     <EditText
-        android:id="@+id/etMin"
+        android:id="@+id/et_min"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:inputType="number"
-        android:text="100000"
-        android:background="@android:drawable/editbox_background_normal"
-        android:padding="10dp"
-        android:layout_marginBottom="10dp"/>
+        android:text="100000" />
 
-    <!-- 最大值输入 -->
+    <!-- eCPM 最大值配置 -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="eCPM 最大值 (分)"
-        android:textColor="#666666"/>
+        android:text="eCPM 最大值："
+        android:textSize="14sp"
+        android:layout_marginTop="8dp" />
+
     <EditText
-        android:id="@+id/etMax"
+        android:id="@+id/et_max"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:inputType="number"
-        android:text="130000"
-        android:background="@android:drawable/editbox_background_normal"
-        android:padding="10dp"
-        android:layout_marginBottom="12dp"/>
+        android:text="130000" />
 
-    <!-- 保存按钮 -->
-    <Button
-        android:id="@+id/btnSave"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="保存配置"
-        android:backgroundTint="#008577"
-        android:textColor="#FFFFFF"
-        android:layout_marginBottom="16dp"/>
-
-    <!-- 日志标题栏与清空按钮 -->
+    <!-- 操作按钮区 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="6dp">
-        <TextView
+        android:layout_marginTop="12dp">
+
+        <Button
+            android:id="@+id/btn_save"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="运行日志"
-            android:textStyle="bold"
-            android:textColor="#333333"/>
+            android:text="保存配置" />
+
         <Button
-            android:id="@+id/btnClear"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:text="清空"
-            android:textSize="12sp"/>
+            android:id="@+id/btn_clear"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="清空日志" />
     </LinearLayout>
 
-    <!-- 可滚动的日志展示框 -->
+    <!-- 实时运行日志展示区 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="实时运行日志："
+        android:textSize="14sp"
+        android:layout_marginTop="16dp" />
+
     <ScrollView
+        android:id="@+id/log_scroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#E0E0E0"
+        android:layout_marginTop="4dp"
+        android:background="#1E1E1E"
         android:padding="8dp">
+
         <TextView
-            android:id="@+id/tvLog"
+            android:id="@+id/tv_log"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="日志就绪，重启目标应用后此处显示注入日志..."
+            android:textColor="#00FF00"
             android:textSize="12sp"
-            android:textColor="#333333"
-            android:fontFamily="monospace"/>
+            android:fontFamily="monospace"
+            android:text="等待日志输出..." />
     </ScrollView>
 
 </LinearLayout>
