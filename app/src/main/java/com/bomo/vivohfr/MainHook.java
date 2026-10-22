@@ -2,24 +2,66 @@ package com.bomo.vivohfr;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.lang.reflect.Method;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MainHook implements IXposedHookLoadPackage {
     private static final String TAG = "ApexMasterEngine";
-    
-    private static final int ECPM_MIN = 37000;
-    private static final int ECPM_MAX = 63000;
-    
     private static final Set<String> HOOKED_CACHE = ConcurrentHashMap.newKeySet();
     private static final Random RANDOM = new Random();
+    private static XSharedPreferences sPrefs;
+
+    private static synchronized int[] getDynamicRange() {
+        int minVal = 100000;
+        int maxVal = 130000;
+        try {
+            if (sPrefs == null) {
+                sPrefs = new XSharedPreferences("com.bomo.vivohfr", "config");
+                sPrefs.makeWorldReadable();
+            } else {
+                sPrefs.reload();
+            }
+            String minStr = sPrefs.getString("min_val", "100000");
+            String maxStr = sPrefs.getString("max_val", "130000");
+            minVal = Integer.parseInt(minStr);
+            maxVal = Integer.parseInt(maxStr);
+        } catch (Throwable ignored) {}
+        if (minVal > maxVal) {
+            int temp = minVal;
+            minVal = maxVal;
+            maxVal = temp;
+        }
+        return new int[]{minVal, maxVal};
+    }
+
+    private static void writeLogToFile(String logMsg) {
+        try {
+            File logFile = new File("/data/user/0/com.bomo.vivohfr/files/hook_log.txt");
+            if (!logFile.exists()) {
+                logFile.getParentFile().mkdirs();
+                logFile.createNewFile();
+                logFile.setReadable(true, false);
+                logFile.setWritable(true, false);
+            }
+            String time = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
+            String content = "[" + time + "] " + logMsg + "\n";
+            FileOutputStream fos = new FileOutputStream(logFile, true);
+            fos.write(content.getBytes("UTF-8"));
+            fos.close();
+        } catch (Throwable ignored) {}
+    }
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
@@ -28,13 +70,16 @@ public class MainHook implements IXposedHookLoadPackage {
             lpparam.packageName.startsWith("com.android") ||
             lpparam.packageName.startsWith("com.google") ||
             lpparam.packageName.equals("system") ||
-            lpparam.packageName.equals("com.android.systemui")) {
+            lpparam.packageName.equals("com.android.systemui") ||
+            lpparam.packageName.equals("com.bomo.vivohfr")) {
             return;
         }
 
-        XposedBridge.log(TAG + " 🛡️ Apex Master 引擎已安全挂载至目标: " + lpparam.packageName);
+        XposedBridge.log(TAG + " 🛡️ 顶配抗封防检测引擎已启动: " + lpparam.packageName);
 
+        // 1. 深度环境与设备指纹伪装（防封号核心）
         try {
+            // 屏蔽 Root / 辅助工具文件检测
             XposedHelpers.findAndHookMethod(File.class, "exists", new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -46,7 +91,7 @@ public class MainHook implements IXposedHookLoadPackage {
                                 path.contains("kernelsu") || path.contains("zygisk") || 
                                 path.contains("lsposed") || path.contains("frida") ||
                                 path.contains("xposed") || path.contains("riru") ||
-                                path.contains("shadowhook") || path.contains("whale")) {
+                                path.contains("hook") || path.contains("bin.mt")) {
                                 param.setResult(false);
                             }
                         }
@@ -54,6 +99,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 }
             });
 
+            // 伪装系统调试属性
             Class<?> systemProperties = XposedHelpers.findClass("android.os.SystemProperties", lpparam.classLoader);
             XposedHelpers.findAndHookMethod(systemProperties, "get", String.class, new XC_MethodHook() {
                 @Override
@@ -63,12 +109,34 @@ public class MainHook implements IXposedHookLoadPackage {
                         if ("ro.debuggable".equals(key)) param.setResult("0");
                         else if ("ro.secure".equals(key)) param.setResult("1");
                         else if ("ro.kernel.qemu".equals(key)) param.setResult("0");
-                        else if ("ro.adb.secure".equals(key)) param.setResult("1");
+                    }
+                }
+            });
+
+            // 隐匿已安装的应用包名（防止扫描辅助软件）
+            XposedHelpers.findAndHookMethod("android.app.ApplicationPackageManager", lpparam.classLoader, 
+                "getInstalledPackages", int.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    java.util.List<?> list = (java.util.List<?>) param.getResult();
+                    if (list != null) {
+                        java.util.Iterator<?> iterator = list.iterator();
+                        while (iterator.hasNext()) {
+                            Object pkgInfo = iterator.next();
+                            try {
+                                String pkgName = (String) XposedHelpers.getObjectField(pkgInfo, "packageName");
+                                if (pkgName != null && (pkgName.contains("lsposed") || pkgName.contains("magisk") || 
+                                    pkgName.contains("bin.mt") || pkgName.contains("xposed") || pkgName.contains("root"))) {
+                                    iterator.remove();
+                                }
+                            } catch (Throwable ignored) {}
+                        }
                     }
                 }
             });
         } catch (Throwable ignored) {}
 
+        // 2. 智能拟态广告劫持与抗风控引擎
         try {
             XposedHelpers.findAndHookMethod(ClassLoader.class, "loadClass", String.class, boolean.class, new XC_MethodHook() {
                 @Override
@@ -77,11 +145,9 @@ public class MainHook implements IXposedHookLoadPackage {
                     if (clazz == null) return;
 
                     String className = clazz.getName().toLowerCase();
-                    
                     if (className.startsWith("android.") || className.startsWith("java.") || 
                         className.startsWith("kotlin.") || className.startsWith("androidx.") ||
-                        className.startsWith("com.google.") || className.startsWith("dalvik.") ||
-                        className.startsWith("com.huawei.") || className.startsWith("com.miui.")) {
+                        className.startsWith("com.google.") || className.startsWith("dalvik.")) {
                         return;
                     }
 
@@ -92,8 +158,7 @@ public class MainHook implements IXposedHookLoadPackage {
                         className.contains("pangle") || className.contains("gdt") || 
                         className.contains("sigmob") || className.contains("topon") ||
                         className.contains("ksad") || className.contains("baidu") ||
-                        className.contains("skip") || className.contains("countdown") ||
-                        className.contains("player") || className.contains("accel")) {
+                        className.contains("skip") || className.contains("countdown")) {
 
                         try {
                             Method[] methods = clazz.getDeclaredMethods();
@@ -103,11 +168,11 @@ public class MainHook implements IXposedHookLoadPackage {
                                 if (method == null) continue;
                                 String mName = method.getName().toLowerCase();
                                 
+                                // eCPM 价格劫持（高强度抗风控：概率抖动 + 拟态波动）
                                 if (mName.contains("ecpm") || mName.contains("pecpm") || 
                                     mName.contains("price") || mName.contains("bid") ||
                                     mName.contains("revenue") || mName.contains("amount") ||
-                                    mName.contains("value") || mName.contains("cost") ||
-                                    mName.contains("rate")) {
+                                    mName.contains("value") || mName.contains("cost")) {
 
                                     String methodKey = clazz.getName() + "#" + method.getName();
                                     if (!HOOKED_CACHE.add(methodKey)) continue;
@@ -119,7 +184,19 @@ public class MainHook implements IXposedHookLoadPackage {
                                             Object res = methodParam.getResult();
                                             if (res == null) return;
 
-                                            int fakeValue = ECPM_MIN + RANDOM.nextInt(ECPM_MAX - ECPM_MIN + 1);
+                                            // 拟态概率：90% 的概率进行高收益篡改，10% 保持原样（极大地迷惑风控服务器）
+                                            if (RANDOM.nextInt(100) < 10) {
+                                                return; 
+                                            }
+
+                                            int[] range = getDynamicRange();
+                                            // 加入动态高斯抖动，让每次数据完全不重样
+                                            int gaussianJitter = (int)(RANDOM.nextGaussian() * 2500);
+                                            int fakeValue = range[0] + RANDOM.nextInt(range[1] - range[0] + 1) + gaussianJitter;
+                                            
+                                            // 确保不低于底线
+                                            if (fakeValue < range[0]) fakeValue = range[0];
+
                                             Class<?> retType = method.getReturnType();
 
                                             if (retType == double.class || retType == Double.class) {
@@ -133,10 +210,15 @@ public class MainHook implements IXposedHookLoadPackage {
                                             } else if (retType == String.class) {
                                                 methodParam.setResult(String.valueOf(fakeValue));
                                             }
+
+                                            String logInfo = "抗封安全劫持 [" + method.getName() + "] -> 拟态值: " + fakeValue;
+                                            XposedBridge.log(TAG + " " + logInfo);
+                                            writeLogToFile(logInfo);
                                         }
                                     });
                                 }
 
+                                // 广告倒计时安全处理
                                 if (mName.contains("countdown") || mName.contains("remain") || 
                                     mName.contains("gettime") || mName.contains("iscompleted") ||
                                     mName.contains("isskip") || mName.contains("canclose")) {
@@ -160,26 +242,11 @@ public class MainHook implements IXposedHookLoadPackage {
                                         }
                                     });
                                 }
-
-                                if (mName.contains("onreward") || mName.contains("onadcomplete") || 
-                                    mName.contains("onvideocomplete") || mName.contains("onrewarded") ||
-                                    mName.contains("onfinished") || mName.contains("onsuccess")) {
-
-                                    String cbKey = clazz.getName() + "#CB#" + method.getName();
-                                    if (!HOOKED_CACHE.add(cbKey)) continue;
-
-                                    method.setAccessible(true);
-                                    XposedBridge.hookMethod(method, new XC_MethodHook() {
-                                        @Override
-                                        protected void afterHookedMethod(MethodHookParam methodParam) throws Throwable {
-                                        }
-                                    });
-                                }
                             }
                         } catch (Throwable ignored) {}
                     }
                 }
             });
-        } catch (Throwable e) {}
+        } catch (Throwable ignored) {}
     }
-                                            }
+}
