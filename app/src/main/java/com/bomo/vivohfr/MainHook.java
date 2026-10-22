@@ -19,6 +19,9 @@ public class MainHook implements IXposedHookLoadPackage {
     private static final Random RANDOM = new Random();
     private static XSharedPreferences sPrefs;
 
+    /**
+     * 动态读取配置：每次触发时 reload，实现修改配置后免重启应用实时生效
+     */
     private static synchronized int[] getDynamicRange() {
         int minVal = 100000;
         int maxVal = 130000;
@@ -27,13 +30,14 @@ public class MainHook implements IXposedHookLoadPackage {
                 sPrefs = new XSharedPreferences("com.bomo.vivohfr", "config");
                 sPrefs.makeWorldReadable();
             } else {
-                sPrefs.reload();
+                sPrefs.reload(); // 强制刷新内存映射，实现无缝动态更新
             }
             String minStr = sPrefs.getString("min_val", "100000");
             String maxStr = sPrefs.getString("max_val", "130000");
             minVal = Integer.parseInt(minStr);
             maxVal = Integer.parseInt(maxStr);
         } catch (Throwable ignored) {}
+
         if (minVal > maxVal) {
             int temp = minVal;
             minVal = maxVal;
@@ -43,8 +47,7 @@ public class MainHook implements IXposedHookLoadPackage {
     }
 
     /**
-     * 完美日志输出：通过 XposedBridge 统一输出到系统日志（Tag: ApexMasterEngine_Ultimate）
-     * 控面板 App 可以直接通过读取 logcat 实时展示，彻底告别文件读写权限限制！
+     * 统一日志输出接口：输出到 LSPosed 系统管道，零权限限制，UI 面板实时提取
      */
     private static void log(String msg) {
         try {
@@ -54,6 +57,7 @@ public class MainHook implements IXposedHookLoadPackage {
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
+        // 过滤系统关键进程与自身控制面板，提高执行效率与稳定性
         if (lpparam.packageName == null || 
             lpparam.packageName.startsWith("android") || 
             lpparam.packageName.startsWith("com.android") ||
@@ -68,7 +72,7 @@ public class MainHook implements IXposedHookLoadPackage {
 
         // ==================== 第一部分：硬核反检测与风控对抗 ====================
         try {
-            // 1. 隐藏特征文件
+            // 1. 隐匿敏感特征文件与框架痕迹
             XposedHelpers.findAndHookMethod(File.class, "exists", new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -88,7 +92,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 }
             });
 
-            // 2. 伪装系统安全属性
+            // 2. 伪装系统调试环境与安全属性
             Class<?> systemProperties = XposedHelpers.findClass("android.os.SystemProperties", lpparam.classLoader);
             XposedHelpers.findAndHookMethod(systemProperties, "get", String.class, new XC_MethodHook() {
                 @Override
@@ -104,7 +108,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 }
             });
 
-            // 3. 过滤已安装应用列表
+            // 3. 屏蔽应用包管理器扫描 Hook / Root 软件
             XposedHelpers.findAndHookMethod("android.app.ApplicationPackageManager", lpparam.classLoader, 
                 "getInstalledPackages", int.class, new XC_MethodHook() {
                 @Override
@@ -127,7 +131,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 }
             });
 
-            // 4. 堆栈特征清洗
+            // 4. 清洗 Throwable 堆栈追踪中的 Hook 框架特征
             XposedHelpers.findAndHookMethod(Throwable.class, "getStackTrace", new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -147,7 +151,7 @@ public class MainHook implements IXposedHookLoadPackage {
             });
         } catch (Throwable ignored) {}
 
-        // ==================== 第二部分：羊毛与广告全通杀劫持引擎 ====================
+        // ==================== 第二部分：全量广告 SDK 与业务逻辑通杀引擎 ====================
         try {
             XposedHelpers.findAndHookMethod(ClassLoader.class, "loadClass", String.class, boolean.class, new XC_MethodHook() {
                 @Override
@@ -156,12 +160,14 @@ public class MainHook implements IXposedHookLoadPackage {
                     if (clazz == null) return;
 
                     String className = clazz.getName().toLowerCase();
+                    // 跳过 Android 原生核心库，极大地保障运行性能
                     if (className.startsWith("android.") || className.startsWith("java.") || 
                         className.startsWith("kotlin.") || className.startsWith("androidx.") ||
                         className.startsWith("com.google.") || className.startsWith("dalvik.")) {
                         return;
                     }
 
+                    // 深度覆盖常见的商业广告 SDK 与游戏结算逻辑类
                     if (className.contains("ad") || className.contains("mediation") || 
                         className.contains("reward") || className.contains("ecpm") || 
                         className.contains("bidding") || className.contains("price") ||
@@ -183,7 +189,7 @@ public class MainHook implements IXposedHookLoadPackage {
                                 if (method == null) continue;
                                 String mName = method.getName().toLowerCase();
                                 
-                                // 1. 收益、金币、价格劫持
+                                // 1. 收益 / 价格 / 金币 / eCPM 动态改写
                                 if (mName.contains("ecpm") || mName.contains("price") || 
                                     mName.contains("bid") || mName.contains("revenue") || 
                                     mName.contains("amount") || mName.contains("value") || 
@@ -202,7 +208,8 @@ public class MainHook implements IXposedHookLoadPackage {
                                             Object res = methodParam.getResult();
                                             if (res == null) return;
 
-                                            if (RANDOM.nextInt(100) < 10) return; // 拟态防封
+                                            // 拟态波动：90% 概率篡改，10% 保持自然抖动，完美防高频判定封号
+                                            if (RANDOM.nextInt(100) < 10) return; 
 
                                             int[] range = getDynamicRange();
                                             int gaussianJitter = (int)(RANDOM.nextGaussian() * 2500);
@@ -222,12 +229,12 @@ public class MainHook implements IXposedHookLoadPackage {
                                                 methodParam.setResult(String.valueOf(fakeValue));
                                             }
 
-                                            log("羊毛暴利劫持 [" + method.getName() + "] -> 成功注入: " + fakeValue);
+                                            log("羊毛暴利劫持 [" + method.getName() + "] ➔ 成功注入: " + fakeValue);
                                         }
                                     });
                                 }
 
-                                // 2. 广告秒跳过与奖励强开
+                                // 2. 广告倒计时清零与免看秒领奖
                                 if (mName.contains("countdown") || mName.contains("remain") || 
                                     mName.contains("gettime") || mName.contains("iscompleted") ||
                                     mName.contains("isskip") || mName.contains("canclose") ||
