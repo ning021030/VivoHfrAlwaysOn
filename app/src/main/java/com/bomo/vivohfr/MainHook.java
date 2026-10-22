@@ -8,11 +8,7 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.lang.reflect.Method;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,25 +42,9 @@ public class MainHook implements IXposedHookLoadPackage {
         return new int[]{minVal, maxVal};
     }
 
-    // 跨进程安全日志写入，适配控制面板实时轮询读取
+    // 优化：通过 LSPosed 统一桥接日志输出，解决跨进程沙盒写文件无权限的问题
     private static void writeLogToFile(String logMsg) {
-        try {
-            File logDir = new File("/sdcard/Android/data/com.bomo.vivohfr/files");
-            if (!logDir.exists()) {
-                logDir.mkdirs();
-            }
-            File logFile = new File(logDir, "hook_log.txt");
-            if (!logFile.exists()) {
-                logFile.createNewFile();
-                logFile.setReadable(true, false);
-                logFile.setWritable(true, false);
-            }
-            String time = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
-            String content = "[" + time + "] " + logMsg + "\n";
-            FileOutputStream fos = new FileOutputStream(logFile, true);
-            fos.write(content.getBytes("UTF-8"));
-            fos.close();
-        } catch (Throwable ignored) {}
+        XposedBridge.log(TAG + " 📌 " + logMsg);
     }
 
     @Override
@@ -169,7 +149,7 @@ public class MainHook implements IXposedHookLoadPackage {
                                 if (method == null) continue;
                                 String mName = method.getName().toLowerCase();
                                 
-                                // eCPM 价格劫持（高强度抗风控：概率抖动 + 拟态波动）
+                                // eCPM 价格劫持
                                 if (mName.contains("ecpm") || mName.contains("pecpm") || 
                                     mName.contains("price") || mName.contains("bid") ||
                                     mName.contains("revenue") || mName.contains("amount") ||
@@ -185,7 +165,6 @@ public class MainHook implements IXposedHookLoadPackage {
                                             Object res = methodParam.getResult();
                                             if (res == null) return;
 
-                                            // 拟态概率：90% 的概率进行高收益篡改，10% 保持原样
                                             if (RANDOM.nextInt(100) < 10) {
                                                 return; 
                                             }
@@ -210,9 +189,7 @@ public class MainHook implements IXposedHookLoadPackage {
                                                 methodParam.setResult(String.valueOf(fakeValue));
                                             }
 
-                                            String logInfo = "安全劫持 [" + method.getName() + "] -> 篡改值: " + fakeValue;
-                                            XposedBridge.log(TAG + " " + logInfo);
-                                            writeLogToFile(logInfo);
+                                            writeLogToFile("安全劫持 [" + method.getName() + "] -> 篡改值: " + fakeValue);
                                         }
                                     });
                                 }
