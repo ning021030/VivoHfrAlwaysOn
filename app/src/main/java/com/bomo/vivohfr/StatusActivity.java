@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Bundle;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
@@ -19,21 +20,18 @@ public class StatusActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_status);
 
-        // 关键改动：这里使用布局文件里定义的 tv_log
         tvLogContent = findViewById(R.id.tv_log);
 
-        // 初始化并注册广播接收器
         logReceiver = new LogBroadcastReceiver();
-        IntentFilter filter = new IntentFilter("com.bomo.vivohfr.ACTION_LOG_UPDATE");
+        IntentFilter filter = new IntentFilter(LogUtils.ACTION_LOG_UPDATE);
         
         // 兼容 Android 13/14+ 的广播导出策略
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(logReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
             registerReceiver(logReceiver, filter);
         }
         
-        // 初始化显示提示
         if (tvLogContent != null) {
             tvLogContent.setText("日志监听已启动，等待新触发...\n");
         }
@@ -42,23 +40,18 @@ public class StatusActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // 页面销毁时注销广播，防止内存泄漏
         if (logReceiver != null) {
             unregisterReceiver(logReceiver);
         }
     }
 
-    // 内部广播接收器
     private class LogBroadcastReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent != null && "com.bomo.vivohfr.ACTION_LOG_UPDATE".equals(intent.getAction())) {
+            if (intent != null && LogUtils.ACTION_LOG_UPDATE.equals(intent.getAction())) {
                 String msg = intent.getStringExtra("log_msg");
                 if (msg != null) {
-                    // 将新日志追加到缓冲区
                     logBuffer.append(msg).append("\n");
-                    
-                    // 实时更新到界面上的 TextView
                     if (tvLogContent != null) {
                         tvLogContent.setText(logBuffer.toString());
                     }
