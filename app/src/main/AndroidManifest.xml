@@ -16,7 +16,6 @@
             android:name="xposedminversion"
             android:value="82" />
 
-        <!-- 注意这里的 .StatusActivity 会自动拼接上面的 namespace -->
         <activity
             android:name=".StatusActivity"
             android:exported="true">
