@@ -1,4 +1,4 @@
-package com.bomo.vivohfr; // 请根据你的实际包名修改
+package com.bomo.vivohfr;
 
 import android.content.Context;
 
@@ -6,7 +6,7 @@ public class GlobalContext {
     private static Context sContext;
 
     public static void setContext(Context context) {
-        if (context != null) {
+        if (context != null && sContext == null) {
             sContext = context.getApplicationContext();
         }
     }
