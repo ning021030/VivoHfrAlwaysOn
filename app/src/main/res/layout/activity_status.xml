@@ -1,87 +1,69 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+package com.bomo.vivohfr;
 
-    <!-- eCPM 最小值配置 -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="eCPM 最小值："
-        android:textSize="14sp" />
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.Bundle;
+import android.widget.TextView;
+import androidx.appcompat.app.AppCompatActivity;
 
-    <EditText
-        android:id="@+id/et_min"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="number"
-        android:text="100000" />
+public class StatusActivity extends AppCompatActivity {
 
-    <!-- eCPM 最大值配置 -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="eCPM 最大值："
-        android:textSize="14sp"
-        android:layout_marginTop="8dp" />
+    private TextView tvLogContent;
+    private LogBroadcastReceiver logReceiver;
+    private StringBuilder logBuffer = new StringBuilder();
 
-    <EditText
-        android:id="@+id/et_max"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="number"
-        android:text="130000" />
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_status);
 
-    <!-- 操作按钮区 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="12dp">
+        // 绑定正确的 id: tv_log
+        tvLogContent = findViewById(R.id.tv_log);
 
-        <Button
-            android:id="@+id/btn_save"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="保存配置" />
+        // 初始化并注册广播接收器
+        logReceiver = new LogBroadcastReceiver();
+        IntentFilter filter = new IntentFilter("com.bomo.vivohfr.ACTION_LOG_UPDATE");
+        
+        // 兼容 Android 13/14+ 的广播导出策略
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(logReceiver, filter, Context.RECEIVER_EXPORTED);
+        } else {
+            registerReceiver(logReceiver, filter);
+        }
+        
+        // 初始化显示提示
+        if (tvLogContent != null) {
+            tvLogContent.setText("日志监听已启动，等待新触发...\n");
+        }
+    }
 
-        <Button
-            android:id="@+id/btn_clear"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="清空日志" />
-    </LinearLayout>
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // 页面销毁时注销广播，防止内存泄漏
+        if (logReceiver != null) {
+            unregisterReceiver(logReceiver);
+        }
+    }
 
-    <!-- 实时运行日志展示区 -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="实时运行日志："
-        android:textSize="14sp"
-        android:layout_marginTop="16dp" />
-
-    <ScrollView
-        android:id="@+id/log_scroll"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginTop="4dp"
-        android:background="#1E1E1E"
-        android:padding="8dp">
-
-        <TextView
-            android:id="@+id/tv_log"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#00FF00"
-            android:textSize="12sp"
-            android:fontFamily="monospace"
-            android:text="等待日志输出..." />
-    </ScrollView>
-
-</LinearLayout>
+    // 内部广播接收器
+    private class LogBroadcastReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent != null && "com.bomo.vivohfr.ACTION_LOG_UPDATE".equals(intent.getAction())) {
+                String msg = intent.getStringExtra("log_msg");
+                if (msg != null) {
+                    // 将新日志追加到缓冲区
+                    logBuffer.append(msg).append("\n");
+                    
+                    // 实时更新到界面上的 TextView
+                    if (tvLogContent != null) {
+                        tvLogContent.setText(logBuffer.toString());
+                    }
+                }
+            }
+        }
+    }
+}
