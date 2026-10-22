@@ -3,21 +3,27 @@
 
     <application
         android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
         android:label="Apex Master Engine"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
 
-        <!-- 声明 Xposed 模块属性 -->
+        <!-- 1. 声明此应用为一个 Xposed/LSPosed 模块 -->
         <meta-data
             android:name="xposedmodule"
             android:value="true" />
+        
+        <!-- 2. 在 LSPosed 模块列表中显示的描述信息 -->
         <meta-data
             android:name="xposeddescription"
             android:value="Apex Master Engine Module" />
+            
+        <!-- 3. 支持的最低 Xposed API 版本 -->
         <meta-data
             android:name="xposedminversion"
             android:value="82" />
 
-        <!-- 控制面板 Activity 声明 -->
+        <!-- 4. 控制面板主界面 Activity 声明 -->
         <activity
             android:name=".StatusActivity"
             android:exported="true">
