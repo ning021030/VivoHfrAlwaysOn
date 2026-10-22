@@ -6,6 +6,7 @@
         android:label="Apex Master Engine"
         android:supportsRtl="true">
 
+        <!-- 声明 Xposed 模块属性 -->
         <meta-data
             android:name="xposedmodule"
             android:value="true" />
@@ -16,6 +17,7 @@
             android:name="xposedminversion"
             android:value="82" />
 
+        <!-- 控制面板 Activity 声明 -->
         <activity
             android:name=".StatusActivity"
             android:exported="true">
