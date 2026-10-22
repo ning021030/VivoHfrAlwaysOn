@@ -1,4 +1,4 @@
-package com.bomo.vivohfr; // 请根据你的实际包名修改
+package com.bomo.vivohfr;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -17,10 +17,10 @@ public class StatusActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_status); // 确保你的 layout 文件名正确
+        setContentView(R.layout.activity_status);
 
-        // 绑定你界面里的 TextView（请确保你在 activity_status.xml 中给它设置了 android:id="@+id/tv_log_content"）
-        tvLogContent = findViewById(R.id.tv_log_content);
+        // 关键改动：这里使用布局文件里定义的 tv_log
+        tvLogContent = findViewById(R.id.tv_log);
 
         // 初始化并注册广播接收器
         logReceiver = new LogBroadcastReceiver();
