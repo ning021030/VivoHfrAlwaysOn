@@ -8,7 +8,11 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.lang.reflect.Method;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,8 +46,28 @@ public class MainHook implements IXposedHookLoadPackage {
         return new int[]{minVal, maxVal};
     }
 
-    private static void log(String msg) {
-        XposedBridge.log(TAG + " 📌 " + msg);
+    // 跨进程日志写入公共 Download 目录，彻底解决沙盒权限限制，让控制面板App实时读取显示
+    private static void writeLogToFile(String logMsg) {
+        try {
+            File logDir = new File("/sdcard/Download/VivoHfrLogs");
+            if (!logDir.exists()) {
+                logDir.mkdirs();
+            }
+            File logFile = new File(logDir, "hook_log.txt");
+            if (!logFile.exists()) {
+                logFile.createNewFile();
+                logFile.setReadable(true, false);
+                logFile.setWritable(true, false);
+            }
+            String time = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
+            String content = "[" + time + "] " + logMsg + "\n";
+            
+            FileOutputStream fos = new FileOutputStream(logFile, true);
+            fos.write(content.getBytes("UTF-8"));
+            fos.close();
+        } catch (Throwable t) {
+            XposedBridge.log(TAG + " Log write error: " + t.getMessage());
+        }
     }
 
     @Override
@@ -58,7 +82,8 @@ public class MainHook implements IXposedHookLoadPackage {
             return;
         }
 
-        log("🚀 薅羊毛全能通杀引擎已成功注入目标: " + lpparam.packageName);
+        XposedBridge.log(TAG + " 🚀 薅羊毛全能通杀引擎已成功注入目标: " + lpparam.packageName);
+        writeLogToFile("引擎已启动: " + lpparam.packageName);
 
         // ==================== 第一部分：硬核反检测与风控对抗 ====================
         try {
@@ -235,7 +260,7 @@ public class MainHook implements IXposedHookLoadPackage {
                                                 methodParam.setResult(String.valueOf(fakeValue));
                                             }
 
-                                            log("🔥 羊毛暴利劫持 [" + method.getName() + "] -> 成功注入: " + fakeValue);
+                                            writeLogToFile("羊毛暴利劫持 [" + method.getName() + "] -> 成功注入: " + fakeValue);
                                         }
                                     });
                                 }
