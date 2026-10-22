@@ -46,6 +46,7 @@ public class MainHook implements IXposedHookLoadPackage {
     private static void log(String msg) {
         try {
             XposedBridge.log(TAG + " ➔ " + msg);
+            // 同步推送到界面
             LogUtils.sendLog(msg);
         } catch (Throwable ignored) {}
     }
@@ -62,6 +63,7 @@ public class MainHook implements IXposedHookLoadPackage {
             return;
         }
 
+        // 自动全局捕获目标应用的 Context
         try {
             XposedHelpers.findAndHookMethod(
                 "android.app.Application",
@@ -80,7 +82,7 @@ public class MainHook implements IXposedHookLoadPackage {
 
         log("🚀 薅羊毛全能通杀引擎已成功注入目标: " + lpparam.packageName);
 
-        // ==================== 第一部分：硬核反检测与风控对抗 ====================
+        // ==================== 反检测与业务 Hook 逻辑 ====================
         try {
             XposedHelpers.findAndHookMethod(File.class, "exists", new XC_MethodHook() {
                 @Override
@@ -100,24 +102,8 @@ public class MainHook implements IXposedHookLoadPackage {
                     }
                 }
             });
-
-            Class<?> systemProperties = XposedHelpers.findClass("android.os.SystemProperties", lpparam.classLoader);
-            XposedHelpers.findAndHookMethod(systemProperties, "get", String.class, new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    if (param.args != null && param.args.length > 0 && param.args[0] instanceof String) {
-                        String key = (String) param.args[0];
-                        if ("ro.debuggable".equals(key)) param.setResult("0");
-                        else if ("ro.secure".equals(key)) param.setResult("1");
-                        else if ("ro.kernel.qemu".equals(key)) param.setResult("0");
-                        else if ("ro.build.tags".equals(key)) param.setResult("release-keys");
-                        else if ("ro.build.type".equals(key)) param.setResult("user");
-                    }
-                }
-            });
         } catch (Throwable ignored) {}
 
-        // ==================== 第二部分：全量广告 SDK 与业务逻辑通杀引擎（强化版） ====================
         try {
             XposedHelpers.findAndHookMethod(ClassLoader.class, "loadClass", String.class, boolean.class, new XC_MethodHook() {
                 @Override
@@ -153,7 +139,6 @@ public class MainHook implements IXposedHookLoadPackage {
                                 if (method == null) continue;
                                 String mName = method.getName().toLowerCase();
                                 
-                                // 1. 收益 / 价格 / 金币 / eCPM 动态改写
                                 if (mName.contains("ecpm") || mName.contains("price") || 
                                     mName.contains("bid") || mName.contains("revenue") || 
                                     mName.contains("amount") || mName.contains("value") || 
@@ -192,37 +177,7 @@ public class MainHook implements IXposedHookLoadPackage {
                                                 methodParam.setResult(String.valueOf(fakeValue));
                                             }
 
-                                            log("羊毛暴利劫持 [" + method.getName() + "] ➔ 成功注入: " + fakeValue);
-                                        }
-                                    });
-                                }
-
-                                // 2. 【强化】广告倒计时清零、免看秒领奖、强制完成与跳过
-                                if (mName.contains("countdown") || mName.contains("remain") || 
-                                    mName.contains("gettime") || mName.contains("iscompleted") ||
-                                    mName.contains("isskip") || mName.contains("canclose") ||
-                                    mName.contains("issuccess") || mName.contains("isreward") ||
-                                    mName.contains("hasreward") || mName.contains("isvalid") ||
-                                    mName.contains("complete") || mName.contains("finish") ||
-                                    mName.contains("rewarded") || mName.contains("adclosed")) {
-
-                                    String skipKey = clazz.getName() + "#SK#" + method.getName();
-                                    if (!HOOKED_CACHE.add(skipKey)) continue;
-
-                                    method.setAccessible(true);
-                                    XposedBridge.hookMethod(method, new XC_MethodHook() {
-                                        @Override
-                                        protected void afterHookedMethod(MethodHookParam methodParam) throws Throwable {
-                                            Class<?> retType = method.getReturnType();
-                                            String name = method.getName().toLowerCase();
-
-                                            if (name.contains("countdown") || name.contains("remain") || name.contains("time")) {
-                                                if (retType == int.class || retType == Integer.class) methodParam.setResult(0);
-                                                else if (retType == long.class || retType == Long.class) methodParam.setResult(0L);
-                                            } else if (retType == boolean.class || retType == Boolean.class || retType == void.class) {
-                                                methodParam.setResult(true);
-                                            }
-                                            log("广告强制跳过/秒领奖触发 ➔ [" + method.getName() + "]");
+                                            log("薅羊毛劫持 [" + method.getName() + "] ➔ 注入: " + fakeValue);
                                         }
                                     });
                                 }
