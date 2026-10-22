@@ -18,9 +18,9 @@
             android:name="xposedminversion"
             android:value="93+" />
 
-        <!-- 控制面板主界面 -->
+        <!-- 控制面板主界面：这里必须和 StatusActivity.java 对应 -->
         <activity
-            android:name=".MainActivity"
+            android:name=".StatusActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
