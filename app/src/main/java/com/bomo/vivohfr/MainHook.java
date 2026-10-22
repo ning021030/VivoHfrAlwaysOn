@@ -8,11 +8,7 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.lang.reflect.Method;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,28 +42,14 @@ public class MainHook implements IXposedHookLoadPackage {
         return new int[]{minVal, maxVal};
     }
 
-    // 跨进程日志写入公共 Download 目录，彻底解决沙盒权限限制，让控制面板App实时读取显示
-    private static void writeLogToFile(String logMsg) {
+    /**
+     * 完美日志输出：通过 XposedBridge 统一输出到系统日志（Tag: ApexMasterEngine_Ultimate）
+     * 控面板 App 可以直接通过读取 logcat 实时展示，彻底告别文件读写权限限制！
+     */
+    private static void log(String msg) {
         try {
-            File logDir = new File("/sdcard/Download/VivoHfrLogs");
-            if (!logDir.exists()) {
-                logDir.mkdirs();
-            }
-            File logFile = new File(logDir, "hook_log.txt");
-            if (!logFile.exists()) {
-                logFile.createNewFile();
-                logFile.setReadable(true, false);
-                logFile.setWritable(true, false);
-            }
-            String time = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
-            String content = "[" + time + "] " + logMsg + "\n";
-            
-            FileOutputStream fos = new FileOutputStream(logFile, true);
-            fos.write(content.getBytes("UTF-8"));
-            fos.close();
-        } catch (Throwable t) {
-            XposedBridge.log(TAG + " Log write error: " + t.getMessage());
-        }
+            XposedBridge.log(TAG + " ➔ " + msg);
+        } catch (Throwable ignored) {}
     }
 
     @Override
@@ -82,12 +64,11 @@ public class MainHook implements IXposedHookLoadPackage {
             return;
         }
 
-        XposedBridge.log(TAG + " 🚀 薅羊毛全能通杀引擎已成功注入目标: " + lpparam.packageName);
-        writeLogToFile("引擎已启动: " + lpparam.packageName);
+        log("🚀 薅羊毛全能通杀引擎已成功注入目标: " + lpparam.packageName);
 
         // ==================== 第一部分：硬核反检测与风控对抗 ====================
         try {
-            // 1. 隐藏 Root / Magisk / LSPosed / 模拟器文件特征
+            // 1. 隐藏特征文件
             XposedHelpers.findAndHookMethod(File.class, "exists", new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -98,7 +79,6 @@ public class MainHook implements IXposedHookLoadPackage {
                             if (path.contains("su") || path.contains("magisk") || 
                                 path.contains("kernelsu") || path.contains("lsposed") || 
                                 path.contains("frida") || path.contains("xposed") ||
-                                path.contains("riru") || path.contains("hook") || 
                                 path.contains("bin.mt") || path.contains("zygisk") ||
                                 path.contains("qemu") || path.contains("nox")) {
                                 param.setResult(false);
@@ -124,7 +104,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 }
             });
 
-            // 3. 过滤已安装应用列表（防 PM 扫描）
+            // 3. 过滤已安装应用列表
             XposedHelpers.findAndHookMethod("android.app.ApplicationPackageManager", lpparam.classLoader, 
                 "getInstalledPackages", int.class, new XC_MethodHook() {
                 @Override
@@ -147,7 +127,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 }
             });
 
-            // 4. 堆栈特征清洗（防止异常排查抓取到 Xposed）
+            // 4. 堆栈特征清洗
             XposedHelpers.findAndHookMethod(Throwable.class, "getStackTrace", new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -165,25 +145,9 @@ public class MainHook implements IXposedHookLoadPackage {
                     param.setResult(cleanList.toArray(new StackTraceElement[0]));
                 }
             });
-
-            // 5. 拦截命令执行防检测
-            XposedHelpers.findAndHookMethod(Runtime.class, "exec", String[].class, String[].class, File.class, new XC_MethodHook() {
-                @Override
-                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                    if (param.args != null && param.args[0] instanceof String[]) {
-                        String[] cmds = (String[]) param.args[0];
-                        for (String cmd : cmds) {
-                            if (cmd != null && (cmd.contains("su") || cmd.contains("magisk") || cmd.contains("which"))) {
-                                param.setResult(null);
-                                break;
-                            }
-                        }
-                    }
-                }
-            });
         } catch (Throwable ignored) {}
 
-        // ==================== 第二部分：羊毛小游戏与广告全通杀劫持引擎 ====================
+        // ==================== 第二部分：羊毛与广告全通杀劫持引擎 ====================
         try {
             XposedHelpers.findAndHookMethod(ClassLoader.class, "loadClass", String.class, boolean.class, new XC_MethodHook() {
                 @Override
@@ -198,7 +162,6 @@ public class MainHook implements IXposedHookLoadPackage {
                         return;
                     }
 
-                    // 覆盖全量广告SDK与薅羊毛业务逻辑类
                     if (className.contains("ad") || className.contains("mediation") || 
                         className.contains("reward") || className.contains("ecpm") || 
                         className.contains("bidding") || className.contains("price") ||
@@ -220,7 +183,7 @@ public class MainHook implements IXposedHookLoadPackage {
                                 if (method == null) continue;
                                 String mName = method.getName().toLowerCase();
                                 
-                                // 1. 收益、金币、价格、元宝劫持
+                                // 1. 收益、金币、价格劫持
                                 if (mName.contains("ecpm") || mName.contains("price") || 
                                     mName.contains("bid") || mName.contains("revenue") || 
                                     mName.contains("amount") || mName.contains("value") || 
@@ -239,8 +202,7 @@ public class MainHook implements IXposedHookLoadPackage {
                                             Object res = methodParam.getResult();
                                             if (res == null) return;
 
-                                            // 拟态概率：90% 篡改，10% 保持自然波动，完美防封
-                                            if (RANDOM.nextInt(100) < 10) return; 
+                                            if (RANDOM.nextInt(100) < 10) return; // 拟态防封
 
                                             int[] range = getDynamicRange();
                                             int gaussianJitter = (int)(RANDOM.nextGaussian() * 2500);
@@ -260,12 +222,12 @@ public class MainHook implements IXposedHookLoadPackage {
                                                 methodParam.setResult(String.valueOf(fakeValue));
                                             }
 
-                                            writeLogToFile("羊毛暴利劫持 [" + method.getName() + "] -> 成功注入: " + fakeValue);
+                                            log("羊毛暴利劫持 [" + method.getName() + "] -> 成功注入: " + fakeValue);
                                         }
                                     });
                                 }
 
-                                // 2. 广告秒跳过、倒计时清零、强制奖励发放成功
+                                // 2. 广告秒跳过与奖励强开
                                 if (mName.contains("countdown") || mName.contains("remain") || 
                                     mName.contains("gettime") || mName.contains("iscompleted") ||
                                     mName.contains("isskip") || mName.contains("canclose") ||
@@ -286,7 +248,7 @@ public class MainHook implements IXposedHookLoadPackage {
                                                 if (retType == int.class || retType == Integer.class) methodParam.setResult(0);
                                                 else if (retType == long.class || retType == Long.class) methodParam.setResult(0L);
                                             } else if (retType == boolean.class || retType == Boolean.class) {
-                                                methodParam.setResult(true); // 强制全部判定为成功、可跳过、已领奖
+                                                methodParam.setResult(true);
                                             }
                                         }
                                     });
